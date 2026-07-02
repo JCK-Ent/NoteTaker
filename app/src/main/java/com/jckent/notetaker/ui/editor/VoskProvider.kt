@@ -26,10 +26,11 @@ object VoskProvider : TranscriptionProvider {
     private const val TARGET_HZ = 16_000
     private const val MODEL_ZIP_ASSET = "vosk-model-small-en-us-0.15.zip"
     private const val MODEL_DIR_NAME = "vosk_model"
+    private const val CONFIDENCE_THRESHOLD = 0.75f
 
     private var cachedModel: Model? = null
 
-    override suspend fun transcribe(context: Context, file: File, apiKey: String): String =
+    override suspend fun transcribe(context: Context, file: File, apiKey: String): TranscriptionResult =
         withContext(Dispatchers.IO) {
             val model = getOrLoadModel(context)
             val (pcm, srcHz, channels) = decodeM4A(file)
@@ -37,15 +38,41 @@ object VoskProvider : TranscriptionProvider {
             val pcm16k = if (srcHz == TARGET_HZ) mono else resample(mono, srcHz, TARGET_HZ)
 
             Recognizer(model, TARGET_HZ.toFloat()).use { rec ->
+                rec.setWords(true)
+
+                val sb = StringBuilder()
+                val lowConf = mutableListOf<IntRange>()
+
+                fun collectWords(json: JSONObject) {
+                    val words = json.optJSONArray("result") ?: return
+                    for (i in 0 until words.length()) {
+                        val w = words.getJSONObject(i)
+                        val word = w.optString("word")
+                        if (word.isEmpty()) continue
+                        val conf = w.optDouble("conf", 1.0).toFloat()
+                        if (sb.isNotEmpty()) sb.append(" ")
+                        val start = sb.length
+                        sb.append(word)
+                        if (conf < CONFIDENCE_THRESHOLD) lowConf.add(start until sb.length)
+                    }
+                }
+
                 val chunkSize = 8_000
                 var i = 0
                 while (i < pcm16k.size) {
                     val end = minOf(i + chunkSize, pcm16k.size)
                     val chunk = pcm16k.copyOfRange(i, end)
-                    rec.acceptWaveForm(chunk, chunk.size)
+                    // When acceptWaveForm returns true, Vosk detected an utterance boundary —
+                    // collect that utterance's words before it gets discarded on the next feed.
+                    if (rec.acceptWaveForm(chunk, chunk.size)) {
+                        collectWords(JSONObject(rec.result))
+                    }
                     i = end
                 }
-                JSONObject(rec.finalResult).optString("text", "").trim()
+                // Collect any remaining words not yet emitted as a complete utterance.
+                collectWords(JSONObject(rec.finalResult))
+
+                TranscriptionResult(sb.toString().trim(), lowConf)
             }
         }
 
@@ -64,7 +91,6 @@ object VoskProvider : TranscriptionProvider {
             ZipInputStream(assetIn).use { zip ->
                 var entry = zip.nextEntry
                 while (entry != null) {
-                    // Strip the top-level folder name from zip paths
                     val relative = entry.name.substringAfter("/")
                     if (relative.isNotEmpty()) {
                         val target = File(dest, relative)

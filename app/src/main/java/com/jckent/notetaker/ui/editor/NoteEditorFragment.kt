@@ -2,11 +2,16 @@ package com.jckent.notetaker.ui.editor
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.media.MediaPlayer
 import android.os.Bundle
+import android.text.Spannable
+import android.text.SpannableString
+import android.text.style.BackgroundColorSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -187,10 +192,27 @@ class NoteEditorFragment : Fragment() {
         binding.btnTranscribe.text = getString(R.string.transcribe_in_progress)
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val text = TranscriptionManager.transcribe(requireContext(), file)
+                val result = TranscriptionManager.transcribe(requireContext(), file)
                 val b = _binding ?: return@launch
                 val current = b.etContent.text?.toString().orEmpty()
-                b.etContent.setText(if (current.isBlank()) text else "$current\n\n$text")
+                val separator = if (current.isBlank()) "" else "\n\n"
+                val fullText = current + separator + result.text
+
+                if (result.lowConfidenceRanges.isEmpty()) {
+                    b.etContent.setText(fullText)
+                } else {
+                    val offset = current.length + separator.length
+                    val spannable = SpannableString(fullText)
+                    for (range in result.lowConfidenceRanges) {
+                        spannable.setSpan(
+                            BackgroundColorSpan(Color.argb(100, 255, 180, 0)),
+                            offset + range.first,
+                            offset + range.last,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                    }
+                    b.etContent.setText(spannable, TextView.BufferType.SPANNABLE)
+                }
                 b.etContent.setSelection(b.etContent.length())
             } catch (e: Exception) {
                 Toast.makeText(requireContext(), e.message ?: "Transcription failed", Toast.LENGTH_LONG).show()

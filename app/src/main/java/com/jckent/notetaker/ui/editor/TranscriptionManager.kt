@@ -37,7 +37,7 @@ object TranscriptionManager {
         return PROVIDERS.firstOrNull { it.id == id } ?: VoskProvider
     }
 
-    suspend fun transcribe(context: Context, file: File): String {
+    suspend fun transcribe(context: Context, file: File): TranscriptionResult {
         val provider = currentProvider(context)
         val key = if (provider.requiresApiKey) {
             getApiKey(context) ?: throw Exception("No API key set. Open Settings → Transcription.")

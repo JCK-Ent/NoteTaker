@@ -19,7 +19,7 @@ object DeepgramProvider : TranscriptionProvider {
     private const val ENDPOINT =
         "https://api.deepgram.com/v1/listen?model=nova-2&diarize=true&punctuate=true"
 
-    override suspend fun transcribe(context: Context, file: File, apiKey: String): String =
+    override suspend fun transcribe(context: Context, file: File, apiKey: String): TranscriptionResult =
         withContext(Dispatchers.IO) {
             val conn = (URL(ENDPOINT).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -34,7 +34,6 @@ object DeepgramProvider : TranscriptionProvider {
             conn.disconnect()
             if (code != 200) throw Exception("Deepgram error $code: $body")
 
-            // Build speaker-labeled transcript from word-level diarization
             val words = JSONObject(body)
                 .getJSONObject("results")
                 .getJSONArray("channels")
@@ -43,20 +42,25 @@ object DeepgramProvider : TranscriptionProvider {
                 .getJSONObject(0)
                 .getJSONArray("words")
 
-            buildString {
-                var currentSpeaker = -1
-                for (i in 0 until words.length()) {
-                    val w = words.getJSONObject(i)
-                    val spk = w.optInt("speaker", 0)
-                    if (spk != currentSpeaker) {
-                        if (isNotEmpty()) appendLine()
-                        append("Speaker ${(spk + 65).toChar()}: ")
-                        currentSpeaker = spk
-                    } else {
-                        append(" ")
-                    }
-                    append(w.getString("punctuated_word"))
+            val sb = StringBuilder()
+            val lowConf = mutableListOf<IntRange>()
+            var currentSpeaker = -1
+            for (i in 0 until words.length()) {
+                val w = words.getJSONObject(i)
+                val spk = w.optInt("speaker", 0)
+                val conf = w.optDouble("confidence", 1.0).toFloat()
+                val word = w.getString("punctuated_word")
+                if (spk != currentSpeaker) {
+                    if (sb.isNotEmpty()) sb.append("\n")
+                    sb.append("Speaker ${(spk + 65).toChar()}: ")
+                    currentSpeaker = spk
+                } else {
+                    sb.append(" ")
                 }
-            }.trim()
+                val start = sb.length
+                sb.append(word)
+                if (conf < 0.75f) lowConf.add(start until sb.length)
+            }
+            TranscriptionResult(sb.toString().trim(), lowConf)
         }
 }

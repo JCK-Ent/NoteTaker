@@ -19,7 +19,7 @@ object AssemblyAiProvider : TranscriptionProvider {
 
     private const val BASE = "https://api.assemblyai.com/v2"
 
-    override suspend fun transcribe(context: Context, file: File, apiKey: String): String =
+    override suspend fun transcribe(context: Context, file: File, apiKey: String): TranscriptionResult =
         withContext(Dispatchers.IO) {
             val uploadUrl = upload(file, apiKey)
             val jobId = submitJob(uploadUrl, apiKey)
@@ -53,7 +53,7 @@ object AssemblyAiProvider : TranscriptionProvider {
         return JSONObject(body).getString("id")
     }
 
-    private suspend fun poll(jobId: String, key: String): String {
+    private suspend fun poll(jobId: String, key: String): TranscriptionResult {
         while (true) {
             delay(3_000)
             val conn = (URL("$BASE/transcript/$jobId").openConnection() as HttpURLConnection).apply {
@@ -66,7 +66,7 @@ object AssemblyAiProvider : TranscriptionProvider {
             when (json.getString("status")) {
                 "completed" -> {
                     val utterances = json.optJSONArray("utterances")
-                    return if (utterances != null && utterances.length() > 0) {
+                    val text = if (utterances != null && utterances.length() > 0) {
                         buildString {
                             for (i in 0 until utterances.length()) {
                                 val u = utterances.getJSONObject(i)
@@ -76,6 +76,7 @@ object AssemblyAiProvider : TranscriptionProvider {
                     } else {
                         json.optString("text", "").trim()
                     }
+                    return TranscriptionResult(text)
                 }
                 "error" -> throw Exception(json.optString("error", "Transcription failed"))
             }

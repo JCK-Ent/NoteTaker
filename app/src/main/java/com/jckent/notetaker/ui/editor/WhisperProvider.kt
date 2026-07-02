@@ -19,7 +19,7 @@ object WhisperProvider : TranscriptionProvider {
     private const val BOUNDARY = "NTBoundaryXYZ"
     private const val ENDPOINT = "https://api.openai.com/v1/audio/transcriptions"
 
-    override suspend fun transcribe(context: Context, file: File, apiKey: String): String =
+    override suspend fun transcribe(context: Context, file: File, apiKey: String): TranscriptionResult =
         withContext(Dispatchers.IO) {
             val conn = (URL(ENDPOINT).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -39,6 +39,6 @@ object WhisperProvider : TranscriptionProvider {
                        else conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $code"
             conn.disconnect()
             if (code != 200) throw Exception("Whisper error $code: $body")
-            JSONObject(body).getString("text").trim()
+            TranscriptionResult(JSONObject(body).getString("text").trim())
         }
 }

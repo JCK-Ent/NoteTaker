@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NoteTaker</string>
+    <string name="hint_title">Note title</string>
+    <string name="hint_content">Start typing your note…</string>
+    <string name="btn_voice">Voice</string>
+    <string name="btn_share">Share</string>
+    <string name="btn_save">Save</string>
+    <string name="menu_notes">Notes</string>
+    <string name="menu_record">Record</string>
+    <string name="recording_idle">Ready to record</string>
+    <string name="btn_start_recording">Start Recording</string>
+    <string name="btn_stop_recording">Stop Recording</string>
+    <string name="btn_attach_to_note">Attach to Note</string>
+</resources>

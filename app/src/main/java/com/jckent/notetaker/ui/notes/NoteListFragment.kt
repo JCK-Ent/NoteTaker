@@ -10,6 +10,7 @@ import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.jckent.notetaker.R
+import com.jckent.notetaker.ThemePreference
 import com.jckent.notetaker.databinding.FragmentNoteListBinding
 
 class NoteListFragment : Fragment() {
@@ -51,6 +52,14 @@ class NoteListFragment : Fragment() {
 
         binding.fabNewNote.setOnClickListener {
             findNavController().navigate(R.id.action_noteList_to_noteEditor)
+        }
+
+        binding.toolbar.inflateMenu(R.menu.menu_note_list)
+        binding.toolbar.setOnMenuItemClickListener { item ->
+            if (item.itemId == R.id.action_toggle_theme) {
+                ThemePreference.cycle(requireContext())
+                true
+            } else false
         }
     }
 

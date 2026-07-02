@@ -1,25 +1,33 @@
 # NoteTaker
 
-Android note-taking app with voice-to-text, audio recording, folder organization, and share to SMS/email.
+Android note-taking app with voice-to-text, audio recording, recording transcription, and share to SMS/email.
 
 ## Features
 
-| Feature | Status | Branch |
-|---|---|---|
-| Text notes (type / paste) | Skeleton | `feature/note-editor` |
-| Voice-to-text | Planned | `feature/voice-to-text` |
-| Audio recording (mic) | Planned | `feature/audio-recording` |
-| Folder organization | Skeleton | `feature/note-editor` |
-| Share via SMS / email | Planned | `feature/sharing` |
-| Record during calls | Planned | `feature/call-recording` |
+| Feature | Status |
+|---|---|
+| Text notes — type, edit, save | Shipped |
+| Voice-to-text (continuous, stops on demand) | Shipped |
+| Audio recording (mic → M4A file) | Shipped |
+| Attach recording to a note | Shipped |
+| Transcribe recording → note text (offline via Vosk) | Shipped |
+| Transcription — cloud providers (Whisper, AssemblyAI, Deepgram) | Shipped |
+| Low-confidence word highlighting in transcription | Shipped |
+| Share note via SMS / email | Shipped |
+| Dark / light / system theme toggle | Shipped |
+| Auto-record mic during active phone calls | Shipped |
+| Call recording foreground service + API 31+ TelephonyCallback | Planned — #10 |
+| Note search / filter | Planned — #11 |
+| Folder / tag organization | Planned — #12 |
 
 ## Tech Stack
 
 - **Language:** Kotlin
-- **Min SDK:** 26 (Android 8.0) — covers ~95% of active devices
+- **Min SDK:** 26 (Android 8.0)
 - **Architecture:** MVVM + LiveData + Navigation Component
 - **Database:** Room (SQLite)
-- **UI:** Material 3
+- **UI:** Material 3 (XML layouts)
+- **Offline transcription:** Vosk (alphacephei/vosk-android, ~40 MB model bundled in APK)
 
 ## Getting Started
 
@@ -34,11 +42,22 @@ Android note-taking app with voice-to-text, audio recording, folder organization
    ```
    git clone https://github.com/JCK-Ent/NoteTaker.git
    ```
-2. Open the project in **Android Studio** (`File → Open`). Android Studio will download Gradle and sync dependencies automatically.
-3. Connect a device or start an emulator running Android 8.0+.
-4. Run the app (`Shift+F10`).
+2. Open in Android Studio (`File → Open`). Gradle will sync and download dependencies automatically.
+3. The first build downloads the Vosk English model (~40 MB) into `app/src/main/assets/` — this only happens once and is bundled into the APK so users don't download anything separately.
+4. Connect a device or start an emulator running Android 8.0+, then run (`Shift+F10`).
 
-> **Note on Gradle wrapper:** The first sync will download Gradle 8.9 (~100 MB). This only happens once.
+## Transcription Providers
+
+Tap ⋮ → **Transcription Settings** to choose a provider and enter an API key.
+
+| Provider | Speaker labels | Internet | Cost |
+|---|---|---|---|
+| Vosk (default) | No | No | Free |
+| OpenAI Whisper | No | Yes | ~$0.006/min |
+| AssemblyAI | Yes | Yes | Free 5 hr/month |
+| Deepgram | Yes | Yes | Free $200 credit |
+
+Words Vosk or Deepgram flag as low-confidence are highlighted in yellow. Tap and correct them.
 
 ## Permissions
 
@@ -46,27 +65,30 @@ Android note-taking app with voice-to-text, audio recording, folder organization
 |---|---|
 | `RECORD_AUDIO` | Voice-to-text and mic recording |
 | `READ_PHONE_STATE` | Detect active calls for in-call recording |
+| `INTERNET` | Cloud transcription providers (optional) |
 | `WRITE_EXTERNAL_STORAGE` | Save recordings on Android 9 and below |
 
 ## Call Recording Notice
 
-Recording audio **during a phone call** captures microphone input only. Recording the other party's audio is blocked by Android 9+ system policy. When the other party is on speaker, their voice leaks into the mic — this is the only cross-device method available without root. Always obtain consent from all parties before recording a call; laws vary by jurisdiction.
+Recording audio during a phone call captures **microphone input only**. Android 9+ blocks access to the call audio stream for non-system apps. When the other party is on speakerphone their voice leaks into the mic — this is the only method available without root. Always obtain consent from all parties; laws vary by jurisdiction.
 
 ## Project Structure
 
 ```
 app/src/main/
 ├── java/com/jckent/notetaker/
-│   ├── data/               # Room entities, DAO, Database
+│   ├── data/               # Room entity, DAO, Database
 │   ├── ui/
-│   │   ├── notes/          # Note list fragment + ViewModel
-│   │   ├── editor/         # Note editor fragment
-│   │   └── recording/      # Audio recording fragment
-│   └── MainActivity.kt
+│   │   ├── notes/          # Note list (RecyclerView + ViewModel + Adapter)
+│   │   ├── editor/         # Note editor, VoiceInputHelper, NoteSharer,
+│   │   │                   # TranscriptionProvider/Manager + providers
+│   │   └── recording/      # Audio recorder, CallRecordingManager
+│   ├── MainActivity.kt     # Nav host, theme toggle, transcription settings
+│   └── ThemePreference.kt
 └── res/
     ├── layout/             # XML layouts
     ├── navigation/         # Nav graph
-    ├── menu/               # Bottom nav menu
+    ├── menu/
     └── values/             # Strings, themes, colors
 ```
 

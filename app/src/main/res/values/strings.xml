@@ -12,4 +12,5 @@
     <string name="btn_start_recording">Start Recording</string>
     <string name="btn_stop_recording">Stop Recording</string>
     <string name="btn_attach_to_note">Attach to Note</string>
+    <string name="action_toggle_theme">Toggle theme</string>
 </resources>

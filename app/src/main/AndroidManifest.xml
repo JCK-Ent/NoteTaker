@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Internet: transcription API calls -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Microphone: voice-to-text and audio recording -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Phone state: detect active calls for in-call recording -->

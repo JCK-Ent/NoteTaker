@@ -16,10 +16,13 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.jckent.notetaker.R
+import com.jckent.notetaker.data.NoteDatabase
 import com.jckent.notetaker.databinding.FragmentRecordingBinding
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class RecordingFragment : Fragment() {
 
@@ -67,16 +70,39 @@ class RecordingFragment : Fragment() {
         }
 
         binding.btnAttachToNote.setOnClickListener {
-            lastRecordingPath?.let { path ->
-                findNavController().navigate(
-                    R.id.action_recording_to_noteEditor,
-                    bundleOf("audioPath" to path)
-                )
-            }
+            lastRecordingPath?.let { path -> showNotePickerDialog(path) }
         }
 
         binding.switchCallRecording.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) showConsentAndEnable() else stopCallRecordingService()
+        }
+    }
+
+    private fun showNotePickerDialog(audioPath: String) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val notes = withContext(Dispatchers.IO) {
+                NoteDatabase.getDatabase(requireContext()).noteDao().getAllNotesList()
+            }
+            val items = arrayOf(getString(R.string.attach_to_note_new)) +
+                notes.map { it.title.ifBlank { "(untitled)" } }.toTypedArray()
+
+            AlertDialog.Builder(requireContext())
+                .setTitle(R.string.attach_to_note_picker_title)
+                .setItems(items) { _, which ->
+                    if (which == 0) {
+                        findNavController().navigate(
+                            R.id.action_recording_to_noteEditor,
+                            bundleOf("audioPath" to audioPath)
+                        )
+                    } else {
+                        val note = notes[which - 1]
+                        findNavController().navigate(
+                            R.id.action_recording_to_noteEditor,
+                            bundleOf("noteId" to note.id, "audioPath" to audioPath)
+                        )
+                    }
+                }
+                .show()
         }
     }
 

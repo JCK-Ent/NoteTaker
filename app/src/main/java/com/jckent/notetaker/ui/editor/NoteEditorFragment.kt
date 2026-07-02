@@ -13,10 +13,13 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import com.jckent.notetaker.R
 import com.jckent.notetaker.data.Note
 import com.jckent.notetaker.databinding.FragmentNoteEditorBinding
 import java.io.File
+import kotlinx.coroutines.launch
 
 class NoteEditorFragment : Fragment() {
 
@@ -33,6 +36,10 @@ class NoteEditorFragment : Fragment() {
     private var isListening = false
     private var mediaPlayer: MediaPlayer? = null
     private var isPlaying = false
+    private var voiceBaseContent = ""
+    private var voiceAccumulated = ""
+    private var transcribeHelper: VoiceInputHelper? = null
+    private var transcribePlayer: MediaPlayer? = null
 
     private val requestMicPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -55,6 +62,7 @@ class NoteEditorFragment : Fragment() {
         noteId = arguments?.getLong("noteId", -1L) ?: -1L
         audioPath = arguments?.getString("audioPath")
         binding.btnPlayRecording.visibility = View.GONE
+        binding.btnTranscribe.visibility = View.GONE
         if (noteId != -1L) {
             viewModel.loadNote(noteId)
         }
@@ -64,9 +72,13 @@ class NoteEditorFragment : Fragment() {
             binding.etContent.setText(note.content)
             val path = audioPath ?: note.audioPath
             if (path != null) showPlayButton(path)
-            else binding.btnPlayRecording.visibility = View.GONE
+            else {
+                binding.btnPlayRecording.visibility = View.GONE
+                binding.btnTranscribe.visibility = View.GONE
+            }
         }
         audioPath?.let { showPlayButton(it) }
+
         binding.btnSave.setOnClickListener {
             val title = binding.etTitle.text?.toString().orEmpty().trim()
             val content = binding.etContent.text?.toString().orEmpty().trim()
@@ -79,23 +91,26 @@ class NoteEditorFragment : Fragment() {
         binding.btnPlayRecording.setOnClickListener {
             if (isPlaying) stopPlayback() else startPlayback()
         }
+        binding.btnTranscribe.setOnClickListener { startTranscription() }
         binding.btnShare.setOnClickListener { showSharePicker() }
     }
 
     private fun showPlayButton(path: String) {
         audioPath = path
         binding.btnPlayRecording.visibility = View.VISIBLE
+        binding.btnTranscribe.visibility = View.VISIBLE
     }
+
+    // --- Playback ---
 
     private fun startPlayback() {
         val path = audioPath ?: return
-        val file = File(path)
-        if (!file.exists()) {
+        if (!File(path).exists()) {
             Toast.makeText(requireContext(), "Recording file not found", Toast.LENGTH_SHORT).show()
             return
         }
         isPlaying = true
-        binding.btnPlayRecording.text = getString(com.jckent.notetaker.R.string.btn_stop_playback)
+        binding.btnPlayRecording.text = getString(R.string.btn_stop_playback)
         mediaPlayer = MediaPlayer().apply {
             setDataSource(path)
             prepare()
@@ -108,47 +123,92 @@ class NoteEditorFragment : Fragment() {
         mediaPlayer?.apply { if (isPlaying) stop(); release() }
         mediaPlayer = null
         isPlaying = false
-        binding.btnPlayRecording.text = getString(com.jckent.notetaker.R.string.btn_play_recording)
+        binding.btnPlayRecording.text = getString(R.string.btn_play_recording)
     }
+
+    // --- Voice to text ---
 
     private fun checkPermissionAndStart() {
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.RECORD_AUDIO)
             == PackageManager.PERMISSION_GRANTED
-        ) {
-            startVoiceInput()
-        } else {
-            requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
-        }
+        ) startVoiceInput()
+        else requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
     }
 
     private fun startVoiceInput() {
         isListening = true
-        binding.btnVoiceToText.text = "Stop"
-        val existingContent = binding.etContent.text?.toString().orEmpty()
-        var lastPartial = ""
+        binding.btnVoiceToText.text = getString(R.string.btn_voice_stop)
+        voiceBaseContent = binding.etContent.text?.toString().orEmpty()
+        voiceAccumulated = ""
         voiceHelper = VoiceInputHelper(
             context = requireContext(),
-            onResult = { text ->
-                lastPartial = text
-                val appended = if (existingContent.isBlank()) text
-                               else "$existingContent $text"
-                binding.etContent.setText(appended)
-                binding.etContent.setSelection(binding.etContent.length())
+            onPartialResult = { partial ->
+                _binding?.etContent?.setText(buildVoiceText(partial))
+                _binding?.etContent?.setSelection(binding.etContent.length())
+            },
+            onSegmentResult = { segment ->
+                voiceAccumulated = if (voiceAccumulated.isBlank()) segment
+                                   else "$voiceAccumulated $segment"
+                _binding?.etContent?.setText(buildVoiceText(""))
+                _binding?.etContent?.setSelection(binding.etContent.length())
             },
             onError = { msg ->
                 isListening = false
-                binding.btnVoiceToText.text = getString(com.jckent.notetaker.R.string.btn_voice)
-                if (lastPartial.isEmpty()) Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+                _binding?.btnVoiceToText?.text = getString(R.string.btn_voice)
+                Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
             }
         ).also { it.start() }
     }
 
     private fun stopVoiceInput() {
-        voiceHelper?.stop()
+        voiceHelper?.destroy()
         voiceHelper = null
         isListening = false
-        binding.btnVoiceToText.text = getString(com.jckent.notetaker.R.string.btn_voice)
+        _binding?.btnVoiceToText?.text = getString(R.string.btn_voice)
     }
+
+    private fun buildVoiceText(partial: String): String {
+        val parts = mutableListOf<String>()
+        if (voiceBaseContent.isNotBlank()) parts.add(voiceBaseContent)
+        if (voiceAccumulated.isNotBlank()) parts.add(voiceAccumulated)
+        if (partial.isNotBlank()) parts.add(partial)
+        return parts.joinToString(" ")
+    }
+
+    // --- Transcription ---
+
+    private fun startTranscription() {
+        val file = File(audioPath ?: return)
+        if (!file.exists()) {
+            Toast.makeText(requireContext(), "Recording file not found", Toast.LENGTH_SHORT).show()
+            return
+        }
+        binding.btnTranscribe.isEnabled = false
+        binding.btnTranscribe.text = getString(R.string.transcribe_in_progress)
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val text = TranscriptionManager.transcribe(requireContext(), file)
+                val b = _binding ?: return@launch
+                val current = b.etContent.text?.toString().orEmpty()
+                b.etContent.setText(if (current.isBlank()) text else "$current\n\n$text")
+                b.etContent.setSelection(b.etContent.length())
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), e.message ?: "Transcription failed", Toast.LENGTH_LONG).show()
+            } finally {
+                _binding?.btnTranscribe?.isEnabled = true
+                _binding?.btnTranscribe?.text = getString(R.string.btn_transcribe)
+            }
+        }
+    }
+
+    private fun stopTranscription() {
+        transcribeHelper?.destroy(); transcribeHelper = null
+        transcribePlayer?.apply { if (isPlaying) stop(); release() }; transcribePlayer = null
+        _binding?.btnTranscribe?.isEnabled = true
+        _binding?.btnTranscribe?.text = getString(R.string.btn_transcribe)
+    }
+
+    // --- Share ---
 
     private fun showSharePicker() {
         val note = Note(
@@ -171,6 +231,7 @@ class NoteEditorFragment : Fragment() {
     override fun onDestroyView() {
         stopVoiceInput()
         stopPlayback()
+        stopTranscription()
         super.onDestroyView()
         _binding = null
     }

@@ -2,12 +2,14 @@ package com.jckent.notetaker.ui.recording
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
@@ -37,6 +39,17 @@ class RecordingFragment : Fragment() {
         ).show()
     }
 
+    private val requestCallRecordingPermissions = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val allGranted = results.values.all { it }
+        if (allGranted) startCallRecordingService()
+        else {
+            binding.switchCallRecording.isChecked = false
+            Toast.makeText(requireContext(), "Permissions required for call recording", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -61,6 +74,40 @@ class RecordingFragment : Fragment() {
                 )
             }
         }
+
+        binding.switchCallRecording.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) showConsentAndEnable() else stopCallRecordingService()
+        }
+    }
+
+    private fun showConsentAndEnable() {
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.call_recording_consent_title)
+            .setMessage(R.string.call_recording_consent_message)
+            .setPositiveButton("I Consent") { _, _ -> checkCallRecordingPermissions() }
+            .setNegativeButton("Cancel") { _, _ -> binding.switchCallRecording.isChecked = false }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun checkCallRecordingPermissions() {
+        val perms = mutableListOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.READ_PHONE_STATE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            perms.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        val missing = perms.filter {
+            ContextCompat.checkSelfPermission(requireContext(), it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isEmpty()) startCallRecordingService()
+        else requestCallRecordingPermissions.launch(missing.toTypedArray())
+    }
+
+    private fun startCallRecordingService() {
+        CallRecordingService.start(requireContext())
+    }
+
+    private fun stopCallRecordingService() {
+        CallRecordingService.stop(requireContext())
     }
 
     private fun checkPermissionAndStart() {

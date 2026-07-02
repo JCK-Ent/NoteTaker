@@ -11,6 +11,7 @@ class VoiceInputHelper(
     private val context: Context,
     private val onPartialResult: (String) -> Unit,
     private val onSegmentResult: (String) -> Unit,
+    private val onDone: () -> Unit = {},
     private val onError: (String) -> Unit
 ) {
 
@@ -22,9 +23,15 @@ class VoiceInputHelper(
         createAndStart()
     }
 
+    /** Graceful stop: waits for the final in-flight result before calling onDone. */
     fun stop() {
         active = false
         recognizer?.stopListening()
+    }
+
+    /** Immediate teardown with no callbacks — use in onDestroyView. */
+    fun destroy() {
+        active = false
         recognizer?.destroy()
         recognizer = null
     }
@@ -38,7 +45,13 @@ class VoiceInputHelper(
                     results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.firstOrNull()?.takeIf { it.isNotEmpty() }
                         ?.let { onSegmentResult(it) }
-                    createAndStart()
+                    if (active) {
+                        createAndStart()
+                    } else {
+                        recognizer?.destroy()
+                        recognizer = null
+                        onDone()
+                    }
                 }
 
                 override fun onError(error: Int) {
@@ -49,9 +62,15 @@ class VoiceInputHelper(
                         SpeechRecognizer.ERROR_SERVER,
                         SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
                             active = false
+                            recognizer?.destroy()
+                            recognizer = null
                             onError(errorMessage(error))
+                            onDone()
                         }
-                        else -> createAndStart() // NO_MATCH, SPEECH_TIMEOUT, BUSY — silently restart
+                        else -> {
+                            if (active) createAndStart()
+                            else { recognizer?.destroy(); recognizer = null; onDone() }
+                        }
                     }
                 }
 

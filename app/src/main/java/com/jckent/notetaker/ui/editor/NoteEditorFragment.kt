@@ -1,15 +1,12 @@
 package com.jckent.notetaker.ui.editor
 
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.os.Bundle
-import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -41,6 +38,8 @@ class NoteEditorFragment : Fragment() {
     private var isPlaying = false
     private var voiceBaseContent = ""
     private var voiceAccumulated = ""
+    private var transcribeHelper: VoiceInputHelper? = null
+    private var transcribePlayer: MediaPlayer? = null
 
     private val requestMicPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -92,10 +91,7 @@ class NoteEditorFragment : Fragment() {
         binding.btnPlayRecording.setOnClickListener {
             if (isPlaying) stopPlayback() else startPlayback()
         }
-        binding.btnTranscribe.setOnClickListener {
-            val key = getApiKey()
-            if (key.isNullOrBlank()) promptForApiKey() else startTranscription(key)
-        }
+        binding.btnTranscribe.setOnClickListener { startTranscription() }
         binding.btnShare.setOnClickListener { showSharePicker() }
     }
 
@@ -147,28 +143,28 @@ class NoteEditorFragment : Fragment() {
         voiceHelper = VoiceInputHelper(
             context = requireContext(),
             onPartialResult = { partial ->
-                binding.etContent.setText(buildVoiceText(partial))
-                binding.etContent.setSelection(binding.etContent.length())
+                _binding?.etContent?.setText(buildVoiceText(partial))
+                _binding?.etContent?.setSelection(binding.etContent.length())
             },
             onSegmentResult = { segment ->
                 voiceAccumulated = if (voiceAccumulated.isBlank()) segment
                                    else "$voiceAccumulated $segment"
-                binding.etContent.setText(buildVoiceText(""))
-                binding.etContent.setSelection(binding.etContent.length())
+                _binding?.etContent?.setText(buildVoiceText(""))
+                _binding?.etContent?.setSelection(binding.etContent.length())
             },
             onError = { msg ->
                 isListening = false
-                binding.btnVoiceToText.text = getString(R.string.btn_voice)
+                _binding?.btnVoiceToText?.text = getString(R.string.btn_voice)
                 Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
             }
         ).also { it.start() }
     }
 
     private fun stopVoiceInput() {
-        voiceHelper?.stop()
+        voiceHelper?.destroy()
         voiceHelper = null
         isListening = false
-        binding.btnVoiceToText.text = getString(R.string.btn_voice)
+        _binding?.btnVoiceToText?.text = getString(R.string.btn_voice)
     }
 
     private fun buildVoiceText(partial: String): String {
@@ -181,32 +177,7 @@ class NoteEditorFragment : Fragment() {
 
     // --- Transcription ---
 
-    private fun getApiKey(): String? =
-        requireContext().getSharedPreferences("notetaker_prefs", Context.MODE_PRIVATE)
-            .getString("openai_api_key", null)
-
-    private fun saveApiKey(key: String) =
-        requireContext().getSharedPreferences("notetaker_prefs", Context.MODE_PRIVATE)
-            .edit().putString("openai_api_key", key).apply()
-
-    private fun promptForApiKey() {
-        val input = EditText(requireContext()).apply {
-            hint = "sk-..."
-            inputType = InputType.TYPE_CLASS_TEXT
-        }
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.transcribe_api_key_title)
-            .setMessage(R.string.transcribe_api_key_message)
-            .setView(input)
-            .setPositiveButton(R.string.transcribe_api_key_save) { _, _ ->
-                val key = input.text.toString().trim()
-                if (key.isNotEmpty()) { saveApiKey(key); startTranscription(key) }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
-    private fun startTranscription(apiKey: String) {
+    private fun startTranscription() {
         val file = File(audioPath ?: return)
         if (!file.exists()) {
             Toast.makeText(requireContext(), "Recording file not found", Toast.LENGTH_SHORT).show()
@@ -216,17 +187,25 @@ class NoteEditorFragment : Fragment() {
         binding.btnTranscribe.text = getString(R.string.transcribe_in_progress)
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val text = TranscriptionHelper.transcribe(file, apiKey)
-                val current = binding.etContent.text?.toString().orEmpty()
-                binding.etContent.setText(if (current.isBlank()) text else "$current\n\n$text")
-                binding.etContent.setSelection(binding.etContent.length())
+                val text = TranscriptionManager.transcribe(requireContext(), file)
+                val b = _binding ?: return@launch
+                val current = b.etContent.text?.toString().orEmpty()
+                b.etContent.setText(if (current.isBlank()) text else "$current\n\n$text")
+                b.etContent.setSelection(b.etContent.length())
             } catch (e: Exception) {
-                Toast.makeText(requireContext(), "Transcription failed: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(requireContext(), e.message ?: "Transcription failed", Toast.LENGTH_LONG).show()
             } finally {
-                binding.btnTranscribe.isEnabled = true
-                binding.btnTranscribe.text = getString(R.string.btn_transcribe)
+                _binding?.btnTranscribe?.isEnabled = true
+                _binding?.btnTranscribe?.text = getString(R.string.btn_transcribe)
             }
         }
+    }
+
+    private fun stopTranscription() {
+        transcribeHelper?.destroy(); transcribeHelper = null
+        transcribePlayer?.apply { if (isPlaying) stop(); release() }; transcribePlayer = null
+        _binding?.btnTranscribe?.isEnabled = true
+        _binding?.btnTranscribe?.text = getString(R.string.btn_transcribe)
     }
 
     // --- Share ---
@@ -252,6 +231,7 @@ class NoteEditorFragment : Fragment() {
     override fun onDestroyView() {
         stopVoiceInput()
         stopPlayback()
+        stopTranscription()
         super.onDestroyView()
         _binding = null
     }

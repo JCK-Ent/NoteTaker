@@ -6,4 +6,8 @@
         android:icon="@drawable/ic_dark_mode"
         android:title="@string/action_toggle_theme"
         app:showAsAction="never" />
+    <item
+        android:id="@+id/action_transcription_settings"
+        android:title="@string/action_transcription_settings"
+        app:showAsAction="never" />
 </menu>

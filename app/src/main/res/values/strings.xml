@@ -25,10 +25,10 @@
     <string name="call_recording_consent_message">This feature records microphone audio during active phone calls. Recording without consent from all parties may be illegal in your jurisdiction. Only enable this if all parties have given consent.</string>
     <string name="btn_voice_stop">Stop</string>
     <string name="btn_transcribe">Transcribe Recording</string>
-    <string name="transcribe_api_key_title">OpenAI API Key Required</string>
-    <string name="transcribe_api_key_message">Enter your OpenAI API key to transcribe recordings. Your key is stored only on this device.</string>
-    <string name="transcribe_api_key_save">Save &amp; Transcribe</string>
     <string name="transcribe_in_progress">Transcribing…</string>
+    <string name="action_transcription_settings">Transcription Settings</string>
+    <string name="transcription_settings_title">Transcription Settings</string>
+    <string name="transcription_api_key_hint">API key</string>
     <string name="attach_to_note_picker_title">Attach recording to…</string>
     <string name="attach_to_note_new">+ New Note</string>
 </resources>

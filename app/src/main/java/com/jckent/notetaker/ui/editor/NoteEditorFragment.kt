@@ -54,6 +54,7 @@ class NoteEditorFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         noteId = arguments?.getLong("noteId", -1L) ?: -1L
         audioPath = arguments?.getString("audioPath")
+        binding.btnPlayRecording.visibility = View.GONE
         if (noteId != -1L) {
             viewModel.loadNote(noteId)
         }
@@ -63,6 +64,7 @@ class NoteEditorFragment : Fragment() {
             binding.etContent.setText(note.content)
             val path = audioPath ?: note.audioPath
             if (path != null) showPlayButton(path)
+            else binding.btnPlayRecording.visibility = View.GONE
         }
         audioPath?.let { showPlayButton(it) }
         binding.btnSave.setOnClickListener {

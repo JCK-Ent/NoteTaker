@@ -13,4 +13,7 @@
     <string name="btn_stop_recording">Stop Recording</string>
     <string name="btn_attach_to_note">Attach to Note</string>
     <string name="action_toggle_theme">Toggle theme</string>
+    <string name="btn_play_recording">Play Recording</string>
+    <string name="btn_stop_playback">Stop Playback</string>
+    <string name="recording_active">Recording…</string>
 </resources>

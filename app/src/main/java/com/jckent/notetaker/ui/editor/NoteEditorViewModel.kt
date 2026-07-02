@@ -17,14 +17,19 @@ class NoteEditorViewModel(application: Application) : AndroidViewModel(applicati
         _note.value = dao.getNoteById(id)
     }
 
-    fun saveNote(id: Long, title: String, content: String) = viewModelScope.launch {
+    fun saveNote(id: Long, title: String, content: String, audioPath: String? = null) = viewModelScope.launch {
         val now = System.currentTimeMillis()
         if (id == -1L) {
-            dao.insert(Note(title = title, content = content, createdAt = now, updatedAt = now))
+            dao.insert(Note(title = title, content = content, audioPath = audioPath, createdAt = now, updatedAt = now))
         } else {
             val existing = _note.value ?: dao.getNoteById(id)
             existing?.let {
-                dao.update(it.copy(title = title, content = content, updatedAt = now))
+                dao.update(it.copy(
+                    title = title,
+                    content = content,
+                    audioPath = audioPath ?: it.audioPath,
+                    updatedAt = now
+                ))
             }
         }
     }

@@ -24,12 +24,21 @@
             android:name="noteId"
             app:argType="long"
             android:defaultValue="-1L" />
+        <argument
+            android:name="audioPath"
+            app:argType="string"
+            app:nullable="true"
+            android:defaultValue="@null" />
     </fragment>
 
     <fragment
         android:id="@+id/recordingFragment"
         android:name="com.jckent.notetaker.ui.recording.RecordingFragment"
         android:label="Record"
-        tools:layout="@layout/fragment_recording" />
+        tools:layout="@layout/fragment_recording">
+        <action
+            android:id="@+id/action_recording_to_noteEditor"
+            app:destination="@id/noteEditorFragment" />
+    </fragment>
 
 </navigation>

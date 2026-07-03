@@ -16,14 +16,7 @@
     <string name="btn_play_recording">Play Recording</string>
     <string name="btn_stop_playback">Stop Playback</string>
     <string name="recording_active">Recording…</string>
-    <string name="call_recording_title">Auto Call Recording</string>
-    <string name="call_recording_description">Records mic audio during active phone calls</string>
-    <string name="call_recording_enable">Enable call recording</string>
-    <string name="call_recording_listening">Listening for calls…</string>
-    <string name="call_recording_active">Recording call…</string>
-    <string name="call_recording_consent_title">Call Recording Consent</string>
-    <string name="call_recording_consent_message">This feature records microphone audio during active phone calls. Recording without consent from all parties may be illegal in your jurisdiction. Only enable this if all parties have given consent.</string>
-    <string name="btn_voice_stop">Stop</string>
+<string name="btn_voice_stop">Stop</string>
     <string name="btn_transcribe">Transcribe Recording</string>
     <string name="transcribe_in_progress">Transcribing…</string>
     <string name="action_transcription_settings">Transcription Settings</string>

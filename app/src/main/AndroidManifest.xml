@@ -1,18 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Internet: transcription API calls -->
+    <!-- Internet: cloud transcription API calls -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Microphone: voice-to-text and audio recording -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <!-- Phone state: detect active calls for in-call recording -->
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <!-- Foreground service: keep call recording alive when app is backgrounded -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- API 34+: foreground service using the microphone must declare this -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-    <!-- API 33+: show persistent recording notification -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Storage: save recordings on Android 9 and below -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
@@ -34,10 +26,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <service
-            android:name=".ui.recording.CallRecordingService"
-            android:foregroundServiceType="microphone"
-            android:exported="false" />
     </application>
 
 </manifest>
